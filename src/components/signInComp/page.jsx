@@ -1,14 +1,28 @@
 "use client";
 import Link from "next/link";
-import React, { useEffect, useState } from "react";
+import { Dialog, Transition } from "@headlessui/react";
+import React, { Fragment, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import MfaChallengeModal from "../challengeMFA/page";
 
 function SignInComp() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [factors, setFactors] = useState([]);
   const [loading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [totpVerified, setTotpVerified] = useState(false);
+  const [totpNotVerified, setTotpNotVerified] = useState(false);
+  let [isOpen, setIsOpen] = useState(false);
+
+  function closeModal() {
+    setIsOpen(false);
+  }
+
+  function openModal() {
+    setIsOpen(true);
+  }
 
   const router = useRouter();
 
@@ -19,7 +33,7 @@ function SignInComp() {
         data: { session },
       } = await supabase.auth.getSession();
       if (session) {
-        router.push("/dashboard");
+        router.push("/");
       }
     };
     getSession();
@@ -29,16 +43,39 @@ function SignInComp() {
     e.preventDefault();
     const supabase = createClientComponentClient();
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email,
-      password: password,
-    });
-    setIsLoading(true);
-    if (error) {
+    try {
+      const { user, session, error } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
+      });
+      const { data: factors, error: factorError } =
+        await supabase.auth.mfa.listFactors();
+      if (error) {
+        throw error;
+      }
+
+      setFactors(factors.totp);
+
+      if (error || totpNotVerified) {
+        setError(error.message);
+      } else {
+        if (factors.totp.length > 0) {
+          // MFA is enabled, prompt for verification code
+          setIsLoading(true); // Show loading state while waiting for MFA input
+          openModal();
+          setIsLoading(false); // Hide loading state once MFA input is received
+          if (totpVerified) {
+            // MFA code is verified, proceed with login
+            closeModal();
+            router.push("/");
+          }
+        } else {
+          // MFA is not enabled, proceed with login
+          router.push("/");
+        }
+      }
+    } catch (error) {
       setError(error.message);
-      setIsLoading(false);
-    } else {
-      router.push("/");
     }
   }
   return (
@@ -107,6 +144,42 @@ function SignInComp() {
           </Link>
         </p>
       </div>
+      <Transition appear show={isOpen} as={Fragment}>
+        <Dialog as="div" className="relative z-10" onClose={closeModal}>
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-black/25" />
+          </Transition.Child>
+
+          <div className="fixed inset-0 overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4 text-center">
+              <Transition.Child
+                as={Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 scale-95"
+                enterTo="opacity-100 scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 scale-100"
+                leaveTo="opacity-0 scale-95"
+              >
+                <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+                  <MfaChallengeModal
+                    onConfirm={() => setTotpVerified(true)}
+                    onClose={() => setTotpNotVerified(true)}
+                  />
+                </Dialog.Panel>
+              </Transition.Child>
+            </div>
+          </div>
+        </Dialog>
+      </Transition>
     </div>
   );
 }

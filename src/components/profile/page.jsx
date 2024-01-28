@@ -7,7 +7,11 @@ import EnrollMFA from "../enrollMFA/page";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 export default function ProfileComp() {
-  let [isOpen, setIsOpen] = useState(true);
+  let [isOpen, setIsOpen] = useState(false);
+  const [factors, setFactors] = useState([]);
+  const [factorId, setFactorId] = useState("");
+  const [asuranceLevel, setAsuranceLevel] = useState("");
+
   const supabase = createClientComponentClient();
 
   function closeModal() {
@@ -36,10 +40,35 @@ export default function ProfileComp() {
     if (err) {
       console.log(err);
     } else {
-      console.log("Successfully signed out");
       router.push("/signin");
     }
   };
+
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await supabase.auth.mfa.listFactors();
+      if (error) {
+        throw error;
+      }
+
+      const { data: asuranceLevel } =
+        supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      setAsuranceLevel(asuranceLevel);
+
+      setFactors(data.totp);
+      setFactorId(data.totp[0]?.id);
+    })();
+  }, [supabase.auth.mfa]);
+
+  async function handleUnenroll() {
+    const { error } = await supabase.auth.mfa.unenroll({ factorId });
+    if (error) {
+      console.error("Error unenrolling TOTP", error);
+      throw error;
+    }
+
+    console.log("Successfully unenrolled TOTP");
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen">
@@ -58,6 +87,7 @@ export default function ProfileComp() {
             Logout
           </button>
         </div>
+
         <div className="bg-[#F4F4F4] p-8 rounded-2xl flex flex-col gap-6 text-center">
           <div className="flex flex-col">
             <div className="grid grid-cols-3 text-left py-4 px-6 text-base font-normal uppercase text-darkBlack bg-[#c9c9c9] rounded-t-[4px]">
@@ -67,17 +97,32 @@ export default function ProfileComp() {
             </div>
             <div className="grid grid-cols-3 items-center text-left p-6 border border-[#BBBBBB] rounded-b-[4px]">
               <p>Authenticator App</p>
-              <p>Not Configured</p>
-              <button
-                type="button"
-                onClick={openModal}
-                className="bg-[#ffd100] py-4 px-6 flex items-center justify-center rounded-full duration-300 transition-all hover:bg-yellow disabled:bg-darkBlack/20 disabled:cursor-not-allowed w-full"
-              >
-                Configure
-              </button>
+              {factors.length > 0 ? (
+                <p className="text-green-500">Enabled</p>
+              ) : (
+                <p className="text-red-500">Disabled</p>
+              )}
+              {factors.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => handleUnenroll()}
+                  className="bg-red-500 py-4 px-6 flex items-center justify-center rounded-full duration-300 transition-all hover:bg-yellow disabled:bg-darkBlack/20 disabled:cursor-not-allowed w-full"
+                >
+                  Remove
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={openModal}
+                  className="bg-[#ffd100] py-4 px-6 flex items-center justify-center rounded-full duration-300 transition-all hover:bg-yellow disabled:bg-darkBlack/20 disabled:cursor-not-allowed w-full"
+                >
+                  Configure
+                </button>
+              )}
             </div>
           </div>
         </div>
+
         <Transition appear show={isOpen} as={Fragment}>
           <Dialog as="div" className="relative z-10" onClose={closeModal}>
             <Transition.Child
@@ -103,7 +148,7 @@ export default function ProfileComp() {
                   leaveFrom="opacity-100 scale-100"
                   leaveTo="opacity-0 scale-95"
                 >
-                  <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+                  <Dialog.Panel className="w-full max-w-2xl transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
                     <EnrollMFA />
                   </Dialog.Panel>
                 </Transition.Child>
