@@ -62,13 +62,7 @@ function SignInComp() {
         if (factors.totp.length > 0) {
           // MFA is enabled, prompt for verification code
           setIsLoading(true); // Show loading state while waiting for MFA input
-          openModal();
-          setIsLoading(false); // Hide loading state once MFA input is received
-          if (totpVerified) {
-            // MFA code is verified, proceed with login
-            closeModal();
-            router.push("/");
-          }
+          router.push("/authMFA");
         } else {
           // MFA is not enabled, proceed with login
           router.push("/");

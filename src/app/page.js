@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useEffect, useState } from "react";
+import Layout from "@/components/page-layout";
 
 export default function Home() {
   const router = useRouter();
@@ -33,7 +34,7 @@ export default function Home() {
     }
   };
   return (
-    <>
+    <Layout>
       {user ? (
         <div className="flex flex-col gap-6 items-center justify-center min-h-screen">
           <h2 className="text-2xl">You are signed in</h2>
@@ -57,6 +58,6 @@ export default function Home() {
           <h2 className="text-2xl">You are not authorized to view this page</h2>
         </div>
       )}
-    </>
+    </Layout>
   );
 }
